@@ -4,22 +4,98 @@ output:
   html_document:
     keep_md: true
 ---
+```{r}
 
+library(dplyr)
+library(plyr)
+library(ggplot2)
+library(data.table)
 
-## Loading and preprocessing the data
+#Loading and preprocessing the data
+activity_dataset <- read.csv("activity.csv")
+#head(activity_dataset)
 
+activity_dataset$date <- as.Date(activity_dataset$date, format = "%Y-%m-%d")
+activity_dataset$interval <- as.factor(activity_dataset$interval)
+#head(activity_dataset$date)
 
+#Question 1. What is mean total number of steps taken per day?
 
-## What is mean total number of steps taken per day?
+totalperday.steps <- tapply(activity_dataset$steps, activity_dataset$date, FUN=sum, na.rm=TRUE)
 
+#draw graphics
+qplot(totalperday.steps, binwidth=1000, fill = "brown", main="Graph of steps taken per day " ,xlab="total number of steps taken each day", ylab="Number of times in a day")
 
+#calculate mean and median of steps per day
+mean(totalperday.steps, na.rm=TRUE)
+median(totalperday.steps, na.rm=TRUE)
 
-## What is the average daily activity pattern?
+#Question 2.What is the average daily activity pattern?
 
+daily_average <- aggregate(x=list(steps=activity_dataset$steps), by=list(interval=activity_dataset$interval),
+                      FUN=mean, na.rm=TRUE)
+#draw graphics
+ggplot(daily_average, aes(x = interval, y = steps, group = 1)) + 
+  geom_line() + scale_x_discrete(breaks = seq(0, 3000, 500))
 
+#calculate max of daily average activity pattern
+daily_average[which.max(daily_average$steps),]
 
-## Imputing missing values
+# Question 3.Imputing missing values
 
+#number of missing values
+missing_values <- sum(is.na(activity_dataset))
+table(missing_values)
 
+na_pos <- which(is.na(activity_dataset$steps))
 
-## Are there differences in activity patterns between weekdays and weekends?
+# Create a vector of means of steps
+mean_vector <- rep(mean(activity_dataset$steps, na.rm=TRUE), times=length(na_pos))
+
+# Replace the NAs by the means vector
+activity_dataset[na_pos, "steps"] <- mean_vector
+
+#aggregate data of steps by each day
+final_sum_data <- aggregate(activity_dataset$steps, by=list(activity_dataset$date), FUN=sum)
+
+# Rename the attributes
+names(final_sum_data) <- c("date", "total")
+
+# draw graphics
+ggplot(final_sum_data, aes(x=total)) + 
+  geom_histogram(fill = "green", binwidth = 1000) + 
+  labs(title="Histogram of the total number of steps taken each day-NA replaced by mean", 
+       x = "Number of Steps per Day", y = "Number of times in a day")
+
+#calculate mean and median for final processed data
+mean(final_sum_data$total)
+median(final_sum_data$total)
+
+# Question 4.Are there differences in activity patterns between weekdays and weekends?
+
+dataset_days <- activity_dataset %>%
+  mutate(type_of_day = as.factor(format(date,"%a")))
+
+dataset_days$type_of_day <- revalue(dataset_days$type_of_day, c("Mon"="Weekday", "Tue"="Weekday", "Wed"="Weekday", 
+                                                                "Thu"="Weekday", "Fri"="Weekday", "Sat"="Weekend", 
+                                                                "Sun"="Weekend"))
+
+dataset_weekday <- subset(dataset_days, type_of_day == "Weekday")
+dataset_weekend <- subset(dataset_days, type_of_day == "Weekend")
+
+weekday_avg <- aggregate(dataset_weekday$steps, list(dataset_weekday$interval,dataset_weekday$type_of_day), mean)
+weekend_avg <- aggregate(dataset_weekend$steps, list(dataset_weekend$interval,dataset_weekend$type_of_day), mean)
+
+colnames(weekday_avg) <- c("interval", "type_of_day", "avg_steps")
+colnames(weekend_avg) <- c("interval", "type_of_day", "avg_steps")
+
+weekday_data <- rbind(weekday_avg, weekend_avg)
+
+#draw graphics
+ggplot(weekday_data, aes(x=interval, y=avg_steps, group=1)) + geom_line() + 
+  scale_x_discrete(breaks=seq(0,2500,500)) + 
+  facet_wrap(~ type_of_day, nrow=2) + 
+  ylab("Number of steps")
+
+knitr::opts_chunk$set(echo = TRUE)
+```
